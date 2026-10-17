@@ -1,11 +1,10 @@
-version: '3.8'
-
 services:
-  clinivara-backend:
+  medivoice-backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-    container_name: clinivara_backend
+    image: medivoice-backend:latest
+    container_name: medivoice_backend
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -19,23 +18,16 @@ services:
       - CLINIVARA_OCR_DEFAULT_LANGUAGE=eng
       - CLINIVARA_DEID_CONFIDENCE_THRESHOLD=0.60
       - CLINIVARA_AUDIT_LOG_PATH=/app/data/audit/audit_events.jsonl
+      - CLINIVARA_LLM_PROVIDER=mock
     volumes:
       # Boundary A: Restricted Raw Document Storage
-      - clinivara_boundary_a:/app/data/storage/boundary_a_raw
+      - medivoice_boundary_a:/app/data/storage/boundary_a_raw
       # Boundary C: Approved Output Vault
-      - clinivara_boundary_c:/app/data/storage/boundary_c_approved
+      - medivoice_boundary_c:/app/data/storage/boundary_c_approved
       # Token Vault for Pseudonymization
-      - clinivara_token_vault:/app/data/storage/token_vault
+      - medivoice_token_vault:/app/data/storage/token_vault
       # Audit Logs
-      - clinivara_audit:/app/data/audit
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2048M
-        reservations:
-          cpus: '0.5'
-          memory: 512M
+      - medivoice_audit:/app/data/audit
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
       interval: 30s
@@ -43,8 +35,24 @@ services:
       retries: 3
       start_period: 15s
 
+  medivoice-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: medivoice-frontend:latest
+    container_name: medivoice_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    environment:
+      # Browser-facing backend URL. Change the host/port if your backend runs elsewhere.
+      - MEDIVOICE_API_BASE_URL=${MEDIVOICE_API_BASE_URL:-http://localhost:8000}
+      - MEDIVOICE_API_KEY=${MEDIVOICE_API_KEY:-medivoice-dev-client-key-2024}
+    depends_on:
+      - medivoice-backend
+
 volumes:
-  clinivara_boundary_a:
-  clinivara_boundary_c:
-  clinivara_token_vault:
-  clinivara_audit:
+  medivoice_boundary_a:
+  medivoice_boundary_c:
+  medivoice_token_vault:
+  medivoice_audit:

@@ -33,6 +33,10 @@ venv/
 ENV/
 env/
 
+# Node / Frontend
+node_modules/
+dist/
+
 # Clinivara Storage Vaults (Preventing committing runtime or patient data)
 data/storage/
 data/audit/

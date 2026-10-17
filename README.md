@@ -1,93 +1,112 @@
-# Clinivara: Privacy-First Clinical Document Processing Backend
+# Medivoice
 
-Clinivara is a security-first, HIPAA- and DPDP-aligned clinical document intake, extraction, and de-identification engine designed to protect patient privacy before any data reaches downstream clinical AI models, vector stores, or LLM agents.
+> Privacy-first, free and accessible multi-agent medical intelligence — upload a
+> diagnostic report, get a verified plain-language explanation in your own language.
 
----
+## Why Medivoice
 
-## The Processing Invariant
+Millions of patients receive medical reports filled with clinical jargon,
+biomarkers and foreign terminology they cannot interpret. Limited consultation time,
+language gaps and low literacy leave people confused about their own health.
+
+Existing commercial AI tools make it worse: they send sensitive health data to the
+cloud, charge subscription fees, cover few regional languages, and risk clinical
+hallucinations.
+
+Medivoice exists to bridge that healthcare-literacy gap — securely, at no cost, on
+everyday hardware.
+
+## What it does
+
+- **Ingests multi-format reports** — PDFs, images and physical scans, read via OCR
+  with structured schema extraction (no free-form string blobs).
+- **Analyzes clinical values** — deterministic biomarker rules flag abnormalities
+  and severity before anything is shown to the patient.
+- **Grounds every answer** — hybrid retrieval (vector + BM25 keyword search) over
+  verified medical knowledge from WHO, ICMR and MedlinePlus.
+- **Simplifies & translates** — rewrites jargon into plain language, then
+  translates to Hindi, Marathi, Gujarati and Tamil with medical terms preserved.
+- **Speaks it back** — neural text-to-speech narration for low-literacy and
+  visually-impaired users.
+- **Delivers insights** — a dashboard with structured views, downloadable summaries
+  and playable audio.
+
+## How it works — 8-node pipeline
 
 ```
-Original Report -> Secure Intake -> Extraction -> Normalization -> Sensitive Entity Detection -> De-identification -> Independent Validation -> Approved Output
+[1. Secure Login] ➔ [2. Upload Report] ➔ [3. OCR & Extraction] ➔ [4. Medical Analysis]
+                                                                        │
+[8. Delivery Dashboard] ◄ [7. Voice Generation] ◄ [6. Simplification] ◄ [5. Knowledge Retrieval]
 ```
 
-No downstream consumer may receive unvalidated extracted text or raw reports. Documents failing security checks, extraction quality, or independent privacy verification are quarantined or rejected (`REJECTED` or `REVIEW_REQUIRED`). Unsafe output is never silently released.
+| Node | Role |
+| :--- | :--- |
+| **1. Secure Login** | Authentication and session management. |
+| **2. Upload Report** | Multi-format intake through a FastAPI REST backend. |
+| **3. OCR & Extraction** | Text extraction with OCR, structured into strict schemas. |
+| **4. Medical Analysis** | Evaluates biomarkers against reference rules and reasoning to flag severity. |
+| **5. Knowledge Retrieval** | Hybrid semantic + keyword search over a verified medical knowledge base. |
+| **6. Simplification & Translation** | Plain-language rewrite, then regional-language translation. |
+| **7. Voice Generation** | Lightweight neural TTS synthesis for the target language. |
+| **8. Delivery Dashboard** | Renders insights, downloadable summaries and playable audio. |
 
----
+## Safety & evaluation
 
-## Key Capabilities
+- **Runtime guardrails** intercept invalid or harmful medical guidance.
+- **Structured validation** — every extracted attribute passes strict schema parsing,
+  so numerical values (hemoglobin, blood glucose, …) must match expected clinical
+  types before downstream analysis.
+- **Hallucination control** — retrieved context is injected under strict system
+  instructions, coupling vector similarity with exact-match scoring.
+- **Evaluation** measures faithfulness, answer relevance and context recall.
+- **Auditability** — all agent execution traces are logged.
 
-- **Secure Document Upload**: Magic-byte signature verification (`%PDF-`, `PNG`, `JPEG`), path traversal rejection, image decompression bomb protection, file size and page count bounding.
-- **Defensive Extraction & Selective OCR**: High-performance digital extraction via PyMuPDF with selective Tesseract OCR fallback on low-text or scanned pages. Ephemeral scratch images are automatically shredded.
-- **Conservative Clinical Normalization**: Unicode NFKC cleaning, line-ending standardization, and clinical section parsing. Preserves negative signs, laboratory units (`mg/dL`, `mmol/L`, `mmHg`), and medication dosages (`500 mg PO BID`).
-- **Clinical & Regional Entity Detection**: Presidio Analyzer, spaCy NLP, and custom recognizers for Hospital MRNs, Indian Aadhaar numbers, PAN cards, ABHA IDs, phone numbers, and doctor names.
-- **Medical Whitelist Protection**: Preserves clinical diagnoses and standard medications from erroneous redaction.
-- **Independent Privacy Release Gate**: Second-pass residual scanner and clinical preservation verifier ensuring fail-closed protection.
-- **Multi-Tenant Data Isolation**: Storage partitioned into Boundary A (Raw Vault), Boundary B (Scratch), Boundary C (Approved Output), and Token Vault.
-- **Privacy-Preserving Audit Logging**: Immutable JSON Lines audit events with log injection sanitization.
+## Hardware
 
----
+Core modules are optimized to run efficiently on baseline **8GB RAM** hardware, with
+offline execution for privacy-sensitive environments. No cloud round-trip is required
+to process a report.
 
-## Quickstart
+## Getting started
 
-### 1. Requirements
-- Python 3.12+
-- Tesseract OCR (`tesseract` on system PATH)
-
-### 2. Local Setup
 ```bash
-# Create virtual environment
-uv venv .venv --python 3.12
-
-# Install dependencies
-uv pip install --python .venv -r requirements.txt
-# or
-uv pip install --python .venv .
-
-# Download spaCy model
-.venv\Scripts\python -m spacy download en_core_web_sm
+docker compose up --build
 ```
 
-### 3. Run Automated Tests
-```bash
-.venv\Scripts\pytest -v
+OR
+
+backend:
+
+```powershell
+cd backend
+python -m venv .venv
+pip install -e .
+.venv\Scripts\activate 
+uvicorn clinivara.main:app --reload
 ```
 
-### 4. Run Privacy & Clinical Preservation Benchmark
-```bash
-.venv\Scripts\python evaluation/evaluate_privacy.py
+frontend:
+
+```powershell
+cd frontend
+npm i
+npm run dev
 ```
 
-### 5. Run the REST API Server
-```bash
-.venv\Scripts\uvicorn clinivara.main:app --reload --host 127.0.0.1 --port 8000
-```
+- Frontend: <http://localhost:3000>
+- Backend health: <http://localhost:8000/api/v1/health>
 
----
+## Repository structure
 
-## API Endpoints
+| Folder | Description |
+| :--- | :--- |
+| `backend/` | FastAPI service — secure intake, extraction, clinical analysis and AI endpoints. |
+| `frontend/` | Medivoice web interface (React + Vite), served by nginx. |
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/api/v1/documents` | Secure upload, extraction, de-identification, and validation. |
-| `GET` | `/api/v1/documents/{id}/status` | Safe processing status and quality metadata. |
-| `GET` | `/api/v1/documents/{id}/result` | Retrieve approved de-identified output (blocks unapproved). |
-| `DELETE` | `/api/v1/documents/{id}` | Secure deletion of raw files, approved output, and metadata. |
-| `GET` | `/api/v1/health` | Container readiness and operational monitoring. |
+> Local (non-Docker) backend setup and full API documentation live in
+> `backend/README.md`.
 
----
+## Disclaimer
 
-## Documentation
-- [Architecture & Trust Boundaries](docs/architecture.md)
-- [Security & Threat Model](docs/security.md)
-- [De-identification Policy](docs/deidentification-policy.md)
-- [Data Flow & Lifecycle](docs/data-flow.md)
-- [API Contract Specification](docs/api.md)
-- [Testing Strategy & Results](docs/testing.md)
-- [Deployment Guide](docs/deployment.md)
-
----
-
-## Limitations & Production Risks
-- Tesseract OCR accuracy is dependent on source scan quality and DPI.
-- Second-pass verification detects known residual patterns, but cannot mathematically guarantee zero re-identification risk in high-dimensional patient datasets.
-- For public cloud production, persistent storage must be backed by encrypted block or object stores with strict KMS key rotation policies.
+Medivoice is for educational use only and is not a substitute for professional
+medical advice, diagnosis or treatment.
